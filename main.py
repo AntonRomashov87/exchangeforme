@@ -17,10 +17,14 @@ CRYPTO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# --- Встановлення webhook ---
-WEBHOOK_URL = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
+# --- Автоматично видаляємо старий webhook ---
 bot.remove_webhook()
+print("Старий webhook видалено")
+
+# --- Встановлення нового webhook для Render ---
+WEBHOOK_URL = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
 bot.set_webhook(url=WEBHOOK_URL)
+print(f"Новий webhook встановлено: {WEBHOOK_URL}")
 
 # --- Команди /start та /help ---
 @bot.message_handler(commands=['start', 'help'])
