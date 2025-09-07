@@ -6,22 +6,20 @@ from flask import Flask, request
 # --- Токен бота ---
 BOT_TOKEN = '8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ'
 
-# --- Ваш ключ OpenExchangeRates ---
-EXCHANGE_API_KEY = 'YOUR_OPENEXCHANGERATES_API_KEY'
-EXCHANGE_API_URL = f"https://openexchangerates.org/api/latest.json?app_id={EXCHANGE_API_KEY}&symbols=UAH,USD,EUR,PLN"
+# --- API для валют (безкоштовний) ---
+EXCHANGE_API_URL = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EUR,PLN"
 
-# CoinGecko API
+# CoinGecko API для криптовалюти
 CRYPTO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 
-# Flask та Telegram bot
+# --- Ініціалізація бота та Flask ---
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# --- Автоматично видаляємо старий webhook ---
+# --- Видаляємо старий webhook і встановлюємо новий ---
 bot.remove_webhook()
 print("Старий webhook видалено")
 
-# --- Встановлення нового webhook для Render ---
 WEBHOOK_URL = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
 bot.set_webhook(url=WEBHOOK_URL)
 print(f"Новий webhook встановлено: {WEBHOOK_URL}")
@@ -44,18 +42,20 @@ def get_exchange_rates(message):
     try:
         response = requests.get(EXCHANGE_API_URL)
         data = response.json()
-        usd_to_base = data['rates']['UAH']
-        eur_to_base = usd_to_base / data['rates']['EUR']
-        pln_to_base = usd_to_base / data['rates']['PLN']
+
+        usd_to_uah = data['rates']['UAH']
+        eur_to_uah = usd_to_uah / data['rates']['EUR']
+        pln_to_uah = usd_to_uah / data['rates']['PLN']
+
         exchange_text = (
             f"💰 **Курс валют (до UAH)**:\n"
-            f"🇺🇸 USD: {usd_to_base:.2f} грн\n"
-            f"🇪🇺 EUR: {eur_to_base:.2f} грн\n"
-            f"🇵🇱 PLN: {pln_to_base:.2f} грн"
+            f"🇺🇸 USD: {usd_to_uah:,.2f} грн\n"
+            f"🇪🇺 EUR: {eur_to_uah:,.2f} грн\n"
+            f"🇵🇱 PLN: {pln_to_uah:,.2f} грн"
         )
         bot.reply_to(message, exchange_text, parse_mode='Markdown')
     except Exception as e:
-        bot.reply_to(message, "⚠️ Помилка при отриманні курсу валют.")
+        bot.reply_to(message, "⚠️ Не вдалося отримати курс валют. Спробуйте пізніше.")
         print(f"Помилка валют: {e}")
 
 # --- Ціни на криптовалюту ---
@@ -65,22 +65,23 @@ def get_crypto_prices(message):
         params = {'ids':'bitcoin,ethereum,tether','vs_currencies':'usd,uah'}
         response = requests.get(CRYPTO_API_URL, params=params)
         data = response.json()
+
         btc_usd, btc_uah = data['bitcoin']['usd'], data['bitcoin']['uah']
         eth_usd, eth_uah = data['ethereum']['usd'], data['ethereum']['uah']
         usdt_usd, usdt_uah = data['tether']['usd'], data['tether']['uah']
 
         crypto_text = (
             f"₿ **Ціни на криптовалюту**:\n\n"
-            f"📊 BTC: {btc_usd:,} $ / {btc_uah:,.0f} грн\n"
-            f"📊 ETH: {eth_usd:,} $ / {eth_uah:,.0f} грн\n"
-            f"📊 USDT: {usdt_usd} $ / {usdt_uah:.2f} грн"
+            f"📊 BTC: {btc_usd:,.2f} $ / {btc_uah:,.0f} грн\n"
+            f"📊 ETH: {eth_usd:,.2f} $ / {eth_uah:,.0f} грн\n"
+            f"📊 USDT: {usdt_usd:,.2f} $ / {usdt_uah:,.2f} грн"
         )
         bot.reply_to(message, crypto_text, parse_mode='Markdown')
     except Exception as e:
-        bot.reply_to(message, "⚠️ Помилка при отриманні цін криптовалюти.")
+        bot.reply_to(message, "⚠️ Не вдалося отримати ціни криптовалюти. Спробуйте пізніше.")
         print(f"Помилка криптовалюти: {e}")
 
-# --- Endpoint webhook для Telegram ---
+# --- Webhook endpoint для Telegram ---
 @app.route('/webhook', methods=['POST'])
 def webhook():
     json_str = request.get_data().decode('utf-8')
@@ -88,11 +89,12 @@ def webhook():
     bot.process_new_updates([update])
     return '', 200
 
-# --- Тестова сторінка для Render ---
+# --- Тестова сторінка ---
 @app.route("/", methods=['GET'])
 def index():
     return "Bot is running via Webhook on Render!", 200
 
+# --- Запуск Flask ---
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
