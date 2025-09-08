@@ -1,7 +1,6 @@
 import os
 import telebot
 import requests
-from flask import Flask, request
 from telebot import types
 
 # --- Токен бота ---
@@ -13,17 +12,8 @@ EXCHANGE_API_URL = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EU
 # CoinGecko API для криптовалюти
 CRYPTO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 
-# --- Ініціалізація бота та Flask ---
+# --- Ініціалізація бота ---
 bot = telebot.TeleBot(BOT_TOKEN)
-app = Flask(__name__)
-
-# --- Видаляємо старий webhook і встановлюємо новий ---
-bot.remove_webhook()
-print("Старий webhook видалено")
-
-WEBHOOK_URL = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
-bot.set_webhook(url=WEBHOOK_URL)
-print(f"Новий webhook встановлено: {WEBHOOK_URL}")
 
 # --- Команди /start та /help з кнопками ---
 @bot.message_handler(commands=['start', 'help'])
@@ -33,7 +23,7 @@ def send_welcome(message):
         "Виберіть команду нижче або введіть її вручну:"
     )
 
-    # Створюємо клавіатуру
+    # Клавіатура
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row("💰 Курс валют", "₿ Крипто BTC/ETH/USDT")
     keyboard.row("₿ Топ-10 криптовалют", "⛽ Ціни на пальне")
@@ -53,7 +43,7 @@ def handle_buttons(message):
     elif text == "⛽ Ціни на пальне":
         get_fuel_prices(message)
 
-# --- Курс валют з емодзі ---
+# --- Курс валют ---
 def get_exchange_rates(message):
     try:
         response = requests.get(EXCHANGE_API_URL)
@@ -71,10 +61,10 @@ def get_exchange_rates(message):
         )
         bot.reply_to(message, exchange_text, parse_mode='Markdown')
     except Exception as e:
-        bot.reply_to(message, "⚠️ Не вдалося отримати курс валют. Спробуйте пізніше.")
+        bot.reply_to(message, "⚠️ Не вдалося отримати курс валют.")
         print(f"Помилка валют: {e}")
 
-# --- Ціни на 3 криптовалюти з емодзі ---
+# --- 3 криптовалюти ---
 def get_crypto_prices(message):
     try:
         params = {'ids':'bitcoin,ethereum,tether','vs_currencies':'usd,uah'}
@@ -89,10 +79,10 @@ def get_crypto_prices(message):
         )
         bot.reply_to(message, crypto_text, parse_mode='Markdown')
     except Exception as e:
-        bot.reply_to(message, "⚠️ Не вдалося отримати ціни криптовалюти. Спробуйте пізніше.")
+        bot.reply_to(message, "⚠️ Не вдалося отримати ціни криптовалюти.")
         print(f"Помилка криптовалюти: {e}")
 
-# --- Топ-10 криптовалют з емодзі ---
+# --- Топ-10 криптовалют ---
 def get_top10_crypto(message):
     try:
         top10 = {
@@ -122,7 +112,7 @@ def get_top10_crypto(message):
         bot.reply_to(message, "⚠️ Не вдалося отримати топ-10 криптовалют.")
         print(f"Помилка топ-10 криптовалют: {e}")
 
-# --- Ціни на пальне з емодзі (середні ціни) ---
+# --- Ціни на пальне ---
 def get_fuel_prices(message):
     try:
         diesel = 57.0
@@ -140,20 +130,7 @@ def get_fuel_prices(message):
         bot.reply_to(message, "⚠️ Не вдалося отримати ціни на пальне.")
         print(f"Помилка пального: {e}")
 
-# --- Webhook endpoint для Telegram ---
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    json_str = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return '', 200
-
-# --- Тестова сторінка ---
-@app.route("/", methods=['GET'])
-def index():
-    return "Bot is running via Webhook on Render!", 200
-
-# --- Запуск Flask ---
+# --- Запуск бота через polling ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    print("Bot is running in polling mode...")
+    bot.infinity_polling()
