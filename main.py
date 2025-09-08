@@ -1,6 +1,5 @@
-import os
-import telebot
 import requests
+import telebot
 from telebot import types
 
 # --- Токен бота ---
@@ -132,5 +131,9 @@ def get_fuel_prices(message):
 
 # --- Запуск бота через polling ---
 if __name__ == "__main__":
+    # Видаляємо старий webhook (щоб не було конфлікту)
+    bot.remove_webhook()
+    print("Webhook видалено, можна стартувати polling")
+
     print("Bot is running in polling mode...")
     bot.infinity_polling()
