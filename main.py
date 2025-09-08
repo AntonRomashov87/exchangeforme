@@ -1,102 +1,43 @@
 import os
-import requests
+import logging
 from flask import Flask, request
-import telebot
-from telebot import types
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# =======================
-# Токен Telegram
-# =======================
-BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
-# URL вебхука беремо з середовища або вставляємо ваш домен Render
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://exchangeforme.onrender.com/webhook")
+# ===== Логування =====
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-bot = telebot.TeleBot(BOT_TOKEN)
-app = Flask(__name__)
+# ===== Telegram Bot =====
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+application = Application.builder().token(BOT_TOKEN).build()
 
-# =======================
-# Функції для отримання даних
-# =======================
-def get_exchange_rates():
-    url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
-    try:
-        data = requests.get(url, timeout=5).json()
-        usd = next(item for item in data if item["cc"] == "USD")["rate"]
-        eur = next(item for item in data if item["cc"] == "EUR")["rate"]
-        pln = next(item for item in data if item["cc"] == "PLN")["rate"]
-        return f"💵 USD: {usd:.2f}₴\n💶 EUR: {eur:.2f}₴\n🇵🇱 PLN: {pln:.2f}₴"
-    except Exception:
-        return "⚠️ Не вдалося завантажити курси валют."
+# ===== Команда /temp =====
+async def temp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f"Отримано апдейт: {update}")
+    # Тут можна буде вставити реальний API погоди
+    await update.message.reply_text("Температура у Львові зараз: 18°C 🌤️")
 
-def get_crypto():
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
-    try:
-        data = requests.get(url, params=params, timeout=5).json()
-        result = "₿ Топ-10 криптовалют:\n"
-        for coin in data:
-            result += f"{coin['symbol'].upper()}: {coin['current_price']}$\n"
-        return result
-    except Exception:
-        return "⚠️ Не вдалося завантажити криптовалюти."
+application.add_handler(CommandHandler("temp", temp))
 
-def get_fuel_prices():
-    fuel_data = {
-        "Дизель": 56.50,
-        "А-95": 57.80,
-        "А-92": 55.20
-    }
-    result = "⛽ Ціни на пальне (OKKO):\n"
-    for k, v in fuel_data.items():
-        result += f"{k}: {v:.2f}₴\n"
-    return result
+# ===== Flask =====
+flask_app = Flask(__name__)
 
-# =======================
-# Обробники команд
-# =======================
-@bot.message_handler(commands=["start", "help"])
-def start(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("💵 Валюти", "₿ Криптовалюта", "⛽ Пальне")
-    bot.send_message(message.chat.id, "Привіт 👋\nОберіть категорію:", reply_markup=markup)
-
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    if message.text == "💵 Валюти":
-        bot.send_message(message.chat.id, get_exchange_rates())
-    elif message.text == "₿ Криптовалюта":
-        bot.send_message(message.chat.id, get_crypto())
-    elif message.text == "⛽ Пальне":
-        bot.send_message(message.chat.id, get_fuel_prices())
-    else:
-        bot.send_message(message.chat.id, "Виберіть команду з меню.")
-
-# =======================
-# Flask Webhook
-# =======================
-@app.route("/webhook", methods=["POST"])
+@flask_app.route("/webhook", methods=["POST"])
 def webhook():
-    json_str = request.get_data().decode("UTF-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
+    """Отримує апдейти від Telegram"""
+    data = request.get_json(force=True)
+    logger.info(f"Webhook апдейт: {data}")
+    update = Update.de_json(data, application.bot)
+    application.update_queue.put_nowait(update)
     return "ok", 200
 
-@app.route("/", methods=["GET"])
+@flask_app.route("/")
 def index():
-    return "Бот працює ✅", 200
+    return "Bot is running!", 200
 
-# =======================
-# Запуск
-# =======================
-if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    
-    # Видаляємо старий вебхук і встановлюємо новий
-    bot.remove_webhook()
-    bot.set_webhook(url=WEBHOOK_URL)
-    print(f"Webhook встановлено: {WEBHOOK_URL}")
-    
-    # Порт автоматично беремо з Render
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+# ===== Точка входу для Gunicorn =====
+app = flask_app
