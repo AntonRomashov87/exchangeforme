@@ -5,17 +5,16 @@ import telebot
 from telebot import types
 
 # =======================
-# Налаштування з Environment Variables
+# Токен Telegram
 # =======================
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
-PORT = int(os.environ.get("PORT", 10000))
+BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
+WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"  # твій URL на Render
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
 # =======================
-# Функції для отримання даних
+# Функції для даних
 # =======================
 def get_exchange_rates():
     url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
@@ -25,8 +24,7 @@ def get_exchange_rates():
         eur = next(item for item in data if item["cc"] == "EUR")["rate"]
         pln = next(item for item in data if item["cc"] == "PLN")["rate"]
         return f"💵 USD: {usd:.2f}₴\n💶 EUR: {eur:.2f}₴\n🇵🇱 PLN: {pln:.2f}₴"
-    except Exception as e:
-        print("Error fetching exchange rates:", e)
+    except Exception:
         return "⚠️ Не вдалося завантажити курси валют."
 
 def get_crypto():
@@ -36,27 +34,22 @@ def get_crypto():
         data = requests.get(url, params=params, timeout=5).json()
         result = "₿ Топ-10 криптовалют:\n"
         for coin in data:
-            result += f"{coin['symbol'].upper()}: ${coin['current_price']}\n"
+            result += f"{coin['symbol'].upper()}: {coin['current_price']}$\n"
         return result
-    except Exception as e:
-        print("Error fetching crypto:", e)
+    except Exception:
         return "⚠️ Не вдалося завантажити криптовалюти."
 
 def get_fuel_prices():
-    try:
-        # Прості приклади цін
-        fuel_data = {
-            "Дизель": 56.50,
-            "А-95": 57.80,
-            "А-92": 55.20
-        }
-        result = "⛽ Ціни на пальне (OKKO):\n"
-        for k, v in fuel_data.items():
-            result += f"{k}: {v:.2f}₴\n"
-        return result
-    except Exception as e:
-        print("Error fetching fuel prices:", e)
-        return "⚠️ Не вдалося завантажити ціни на пальне."
+    # Приклад цін на пальне
+    fuel_data = {
+        "Дизель": 56.50,
+        "А-95": 57.80,
+        "А-92": 55.20
+    }
+    result = "⛽ Ціни на пальне (OKKO):\n"
+    for k, v in fuel_data.items():
+        result += f"{k}: {v:.2f}₴\n"
+    return result
 
 # =======================
 # Обробники команд
@@ -64,10 +57,7 @@ def get_fuel_prices():
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn1 = types.KeyboardButton("💵 Валюти")
-    btn2 = types.KeyboardButton("₿ Криптовалюта")
-    btn3 = types.KeyboardButton("⛽ Пальне")
-    markup.add(btn1, btn2, btn3)
+    markup.add("💵 Валюти", "₿ Криптовалюта", "⛽ Пальне")
     bot.send_message(message.chat.id, "Привіт 👋\nОберіть категорію:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: True)
@@ -82,16 +72,13 @@ def handle_message(message):
         bot.send_message(message.chat.id, "Виберіть команду з меню.")
 
 # =======================
-# Webhook для Flask
+# Webhook для Telegram
 # =======================
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    try:
-        json_str = request.get_data().decode("UTF-8")
-        update = telebot.types.Update.de_json(json_str)
-        bot.process_new_updates([update])
-    except Exception as e:
-        print("Webhook error:", e)
+    json_str = request.get_data().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
     return "OK", 200
 
 @app.route("/", methods=["GET"])
@@ -99,11 +86,13 @@ def index():
     return "Бот працює ✅", 200
 
 # =======================
-# Запуск
+# Запуск на Render
 # =======================
 if __name__ == "__main__":
-    print("Removing old webhook...")
     bot.remove_webhook()
-    print(f"Setting webhook: {WEBHOOK_URL}")
     bot.set_webhook(url=WEBHOOK_URL)
-    app.run(host="0.0.0.0", port=PORT)
+    print(f"Webhook встановлено: {WEBHOOK_URL}")
+
+    # Використовуємо порт, який надає Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
