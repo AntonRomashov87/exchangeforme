@@ -1,14 +1,13 @@
-import os
 import requests
 from flask import Flask, request
 import telebot
 from telebot import types
 
 # =======================
-# Токен Telegram і вебхук
+# Токен Telegram (вставлений прямо)
 # =======================
 BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
-WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"  # Замінити на ваш URL Render
+WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -24,8 +23,8 @@ def get_exchange_rates():
         eur = next(item for item in data if item["cc"] == "EUR")["rate"]
         pln = next(item for item in data if item["cc"] == "PLN")["rate"]
         return f"💵 USD: {usd:.2f}₴\n💶 EUR: {eur:.2f}₴\n🇵🇱 PLN: {pln:.2f}₴"
-    except Exception:
-        return "⚠️ Не вдалося завантажити курси валют."
+    except Exception as e:
+        return f"⚠️ Не вдалося завантажити курси валют.\n{e}"
 
 def get_crypto():
     url = "https://api.coingecko.com/api/v3/coins/markets"
@@ -36,8 +35,8 @@ def get_crypto():
         for coin in data:
             result += f"{coin['symbol'].upper()}: {coin['current_price']}$\n"
         return result
-    except Exception:
-        return "⚠️ Не вдалося завантажити криптовалюти."
+    except Exception as e:
+        return f"⚠️ Не вдалося завантажити криптовалюти.\n{e}"
 
 def get_fuel_prices():
     try:
@@ -50,8 +49,8 @@ def get_fuel_prices():
         for k, v in fuel_data.items():
             result += f"{k}: {v:.2f}₴\n"
         return result
-    except Exception:
-        return "⚠️ Не вдалося завантажити ціни на пальне."
+    except Exception as e:
+        return f"⚠️ Не вдалося завантажити ціни на пальне.\n{e}"
 
 # =======================
 # Обробники команд
@@ -59,13 +58,16 @@ def get_fuel_prices():
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("💵 Валюти"))
-    markup.add(types.KeyboardButton("₿ Криптовалюта"))
-    markup.add(types.KeyboardButton("⛽ Пальне"))
+    btn1 = types.KeyboardButton("💵 Валюти")
+    btn2 = types.KeyboardButton("₿ Криптовалюта")
+    btn3 = types.KeyboardButton("⛽ Пальне")
+    markup.add(btn1, btn2, btn3)
     bot.send_message(message.chat.id, "Привіт 👋\nОберіть категорію:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    print("=== Отримано повідомлення ===")
+    print(message.text)
     if message.text == "💵 Валюти":
         bot.send_message(message.chat.id, get_exchange_rates())
     elif message.text == "₿ Криптовалюта":
@@ -82,6 +84,8 @@ def handle_message(message):
 def webhook():
     json_str = request.get_data().decode("UTF-8")
     update = telebot.types.Update.de_json(json_str)
+    print("=== Отримано апдейт ===")
+    print(update)
     bot.process_new_updates([update])
     return "ok", 200
 
@@ -93,8 +97,7 @@ def index():
 # Запуск
 # =======================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Render використовує змінну PORT
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook встановлено: {WEBHOOK_URL}")
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
