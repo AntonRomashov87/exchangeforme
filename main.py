@@ -4,7 +4,7 @@ import telebot
 from telebot import types
 
 # =======================
-# Токен Telegram (вставлений прямо)
+# Вставлений Telegram токен
 # =======================
 BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
 WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"
@@ -16,32 +16,33 @@ app = Flask(__name__)
 # Функції для отримання даних
 # =======================
 def get_exchange_rates():
+    """Повертає курси валют від НБУ"""
     url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
     try:
         data = requests.get(url, timeout=5).json()
         usd = next(item for item in data if item["cc"] == "USD")["rate"]
         eur = next(item for item in data if item["cc"] == "EUR")["rate"]
         pln = next(item for item in data if item["cc"] == "PLN")["rate"]
-        return f"💵 USD: {usd:.2f}₴\n💶 EUR: {eur:.2f}₴\n🇵🇱 PLN: {pln:.2f}₴"
+        return f"💵 Курс валют:\nUSD: {usd:.2f}₴\nEUR: {eur:.2f}₴\nPLN: {pln:.2f}₴"
     except Exception:
         return "⚠️ Не вдалося завантажити курси валют."
 
 def get_crypto():
+    """Повертає топ-10 криптовалют за ціною USD"""
     url = "https://api.coingecko.com/api/v3/coins/markets"
     params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
     try:
         data = requests.get(url, params=params, timeout=5).json()
         result = "₿ Топ-10 криптовалют:\n"
         for coin in data:
-            result += f"{coin['symbol'].upper()}: {coin['current_price']}$\n"
+            result += f"{coin['symbol'].upper()}: ${coin['current_price']}\n"
         return result
     except Exception:
         return "⚠️ Не вдалося завантажити криптовалюти."
 
 def get_fuel_prices():
-    # Проста заглушка, оскільки OKKO API закрите
+    """Повертає актуальні ціни на пальне (заглушка OKKO)"""
     try:
-        # Приклад актуальних цін
         fuel_data = {
             "Дизель": 56.50,
             "А-95": 57.80,
@@ -55,7 +56,7 @@ def get_fuel_prices():
         return "⚠️ Не вдалося завантажити ціни на пальне."
 
 # =======================
-# Обробники команд
+# Обробники команд і кнопок
 # =======================
 @bot.message_handler(commands=["start", "help"])
 def start(message):
@@ -78,7 +79,7 @@ def handle_message(message):
         bot.send_message(message.chat.id, "Виберіть команду з меню.")
 
 # =======================
-# Flask Webhook
+# Flask webhook
 # =======================
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -92,9 +93,10 @@ def index():
     return "Бот працює ✅", 200
 
 # =======================
-# Запуск
+# Запуск Flask
 # =======================
 if __name__ == "__main__":
+    # Видаляємо старий webhook і встановлюємо новий
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook встановлено: {WEBHOOK_URL}")
