@@ -1,15 +1,13 @@
-import os
 import requests
 from flask import Flask, request
 import telebot
 from telebot import types
 
 # =======================
-# Налаштування
+# Токен Telegram (вставлений прямо)
 # =======================
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # Render Environment Variable
+BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
 WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"
-TEST_CHAT_ID = os.getenv("TEST_CHAT_ID")  # Ваш Telegram ID для тестового повідомлення
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -41,15 +39,17 @@ def get_crypto():
         return "⚠️ Не вдалося завантажити криптовалюти."
 
 def get_fuel_prices():
-    url = "https://api.okko.ua/fuel/prices"  # приклад, може змінюватись
+    # Проста заглушка, оскільки OKKO API закрите
     try:
-        data = requests.get(url, timeout=5).json()
-        prices = data.get("data", [])
+        # Приклад актуальних цін
+        fuel_data = {
+            "Дизель": 56.50,
+            "А-95": 57.80,
+            "А-92": 55.20
+        }
         result = "⛽ Ціни на пальне (OKKO):\n"
-        for fuel in prices:
-            name = fuel.get("name")
-            price = fuel.get("price")
-            result += f"{name}: {price}₴\n"
+        for k, v in fuel_data.items():
+            result += f"{k}: {v:.2f}₴\n"
         return result
     except Exception:
         return "⚠️ Не вдалося завантажити ціни на пальне."
@@ -98,10 +98,4 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook встановлено: {WEBHOOK_URL}")
-
-    if TEST_CHAT_ID:
-        try:
-            bot.send_message(TEST_CHAT_ID, "✅ Бот успішно запущено та webhook встановлено!")
-            print("Тестове повідомлення відправлено.")
-        except Exception as e:
-            print(f"Помилка при відправці тестового повідомлення: {e}")
+    app.run(host="0.0.0.0", port=10000)
