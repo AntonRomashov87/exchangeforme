@@ -8,13 +8,14 @@ from telebot import types
 # Токен Telegram
 # =======================
 BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
-WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"  # твій URL на Render
+# URL вебхука беремо з середовища або вставляємо ваш домен Render
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://exchangeforme.onrender.com/webhook")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
 # =======================
-# Функції для даних
+# Функції для отримання даних
 # =======================
 def get_exchange_rates():
     url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
@@ -40,7 +41,6 @@ def get_crypto():
         return "⚠️ Не вдалося завантажити криптовалюти."
 
 def get_fuel_prices():
-    # Приклад цін на пальне
     fuel_data = {
         "Дизель": 56.50,
         "А-95": 57.80,
@@ -72,27 +72,31 @@ def handle_message(message):
         bot.send_message(message.chat.id, "Виберіть команду з меню.")
 
 # =======================
-# Webhook для Telegram
+# Flask Webhook
 # =======================
 @app.route("/webhook", methods=["POST"])
 def webhook():
     json_str = request.get_data().decode("UTF-8")
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
-    return "OK", 200
+    return "ok", 200
 
 @app.route("/", methods=["GET"])
 def index():
     return "Бот працює ✅", 200
 
 # =======================
-# Запуск на Render
+# Запуск
 # =======================
 if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    
+    # Видаляємо старий вебхук і встановлюємо новий
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook встановлено: {WEBHOOK_URL}")
-
-    # Використовуємо порт, який надає Render
-    port = int(os.environ.get("PORT", 5000))
+    
+    # Порт автоматично беремо з Render
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
