@@ -5,11 +5,10 @@ import telebot
 from telebot import types
 
 # =======================
-# Токен Telegram (вставлений прямо)
+# Токен Telegram і вебхук
 # =======================
 BOT_TOKEN = "8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ"
-# Вебхук автоматично під ваш Render URL
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://exchangeforme.onrender.com/webhook")
+WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"  # Замінити на ваш URL Render
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -77,13 +76,11 @@ def handle_message(message):
         bot.send_message(message.chat.id, "Виберіть команду з меню.")
 
 # =======================
-# Flask Webhook з логуванням
+# Flask Webhook
 # =======================
 @app.route("/webhook", methods=["POST"])
 def webhook():
     json_str = request.get_data().decode("UTF-8")
-    print("=== Отримано update ===")
-    print(json_str)  # лог всіх даних від Telegram
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
     return "ok", 200
@@ -96,10 +93,8 @@ def index():
 # Запуск
 # =======================
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))  # Render використовує змінну PORT
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook встановлено: {WEBHOOK_URL}")
-    
-    # Використовуємо порт Render або 10000 за замовчуванням
-    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
