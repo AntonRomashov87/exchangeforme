@@ -2,6 +2,7 @@ import os
 import telebot
 import requests
 from flask import Flask, request
+from telebot import types
 
 # --- Токен бота ---
 BOT_TOKEN = '8008617718:AAHYtH1YadkHebM2r8MQrMnRadYLTXdf4WQ'
@@ -24,22 +25,35 @@ WEBHOOK_URL = f"{os.environ.get('RENDER_EXTERNAL_URL')}/webhook"
 bot.set_webhook(url=WEBHOOK_URL)
 print(f"Новий webhook встановлено: {WEBHOOK_URL}")
 
-# --- Команди /start та /help ---
+# --- Команди /start та /help з кнопками ---
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
         "Привіт! 👋 Я бот для перевірки курсів валют, криптовалюти та цін на пальне.\n"
-        "Команди:\n"
-        "💰 /exchange - курс валют (USD, EUR, PLN → UAH)\n"
-        "₿ /crypto - ціни BTC, ETH, USDT\n"
-        "₿ /crypto10 - топ-10 криптовалют (USD, UAH)\n"
-        "⛽ /fuel - ціни на пальне (дизель, бензин, газ)\n"
-        "💡 /help - ця довідка"
+        "Виберіть команду нижче або введіть її вручну:"
     )
-    bot.reply_to(message, welcome_text)
+
+    # Створюємо клавіатуру
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.row("💰 Курс валют", "₿ Крипто BTC/ETH/USDT")
+    keyboard.row("₿ Топ-10 криптовалют", "⛽ Ціни на пальне")
+
+    bot.send_message(message.chat.id, welcome_text, reply_markup=keyboard)
+
+# --- Обробник кнопок ---
+@bot.message_handler(func=lambda message: True)
+def handle_buttons(message):
+    text = message.text
+    if text == "💰 Курс валют":
+        get_exchange_rates(message)
+    elif text == "₿ Крипто BTC/ETH/USDT":
+        get_crypto_prices(message)
+    elif text == "₿ Топ-10 криптовалют":
+        get_top10_crypto(message)
+    elif text == "⛽ Ціни на пальне":
+        get_fuel_prices(message)
 
 # --- Курс валют з емодзі ---
-@bot.message_handler(commands=['exchange'])
 def get_exchange_rates(message):
     try:
         response = requests.get(EXCHANGE_API_URL)
@@ -61,7 +75,6 @@ def get_exchange_rates(message):
         print(f"Помилка валют: {e}")
 
 # --- Ціни на 3 криптовалюти з емодзі ---
-@bot.message_handler(commands=['crypto'])
 def get_crypto_prices(message):
     try:
         params = {'ids':'bitcoin,ethereum,tether','vs_currencies':'usd,uah'}
@@ -80,7 +93,6 @@ def get_crypto_prices(message):
         print(f"Помилка криптовалюти: {e}")
 
 # --- Топ-10 криптовалют з емодзі ---
-@bot.message_handler(commands=['crypto10'])
 def get_top10_crypto(message):
     try:
         top10 = {
@@ -111,10 +123,8 @@ def get_top10_crypto(message):
         print(f"Помилка топ-10 криптовалют: {e}")
 
 # --- Ціни на пальне з емодзі (середні ціни) ---
-@bot.message_handler(commands=['fuel'])
 def get_fuel_prices(message):
     try:
-        # Середні ціни по Україні, можна оновлювати вручну
         diesel = 57.0
         petrol = 53.0
         gas = 27.0
