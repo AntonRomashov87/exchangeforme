@@ -7,18 +7,17 @@ from telebot import types
 # =======================
 # Налаштування
 # =======================
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # зберігай токен у Render Environment
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # Render Environment Variable
 WEBHOOK_URL = "https://exchangeforme.onrender.com/webhook"
+TEST_CHAT_ID = os.getenv("TEST_CHAT_ID")  # Ваш Telegram ID для тестового повідомлення
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
 # =======================
-# Джерела даних
+# Функції для отримання даних
 # =======================
-
 def get_exchange_rates():
-    """Отримати курси валют з НБУ"""
     url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
     try:
         data = requests.get(url, timeout=5).json()
@@ -30,7 +29,6 @@ def get_exchange_rates():
         return "⚠️ Не вдалося завантажити курси валют."
 
 def get_crypto():
-    """Отримати топ-10 криптовалют з CoinGecko"""
     url = "https://api.coingecko.com/api/v3/coins/markets"
     params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
     try:
@@ -43,8 +41,7 @@ def get_crypto():
         return "⚠️ Не вдалося завантажити криптовалюти."
 
 def get_fuel_prices():
-    """Отримати ціни на пальне з OKKO"""
-    url = "https://api.okko.ua/fuel/prices"
+    url = "https://api.okko.ua/fuel/prices"  # приклад, може змінюватись
     try:
         data = requests.get(url, timeout=5).json()
         prices = data.get("data", [])
@@ -58,9 +55,8 @@ def get_fuel_prices():
         return "⚠️ Не вдалося завантажити ціни на пальне."
 
 # =======================
-# Обробка команд
+# Обробники команд
 # =======================
-
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -84,7 +80,6 @@ def handle_message(message):
 # =======================
 # Flask Webhook
 # =======================
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
     json_str = request.get_data().decode("UTF-8")
@@ -97,10 +92,16 @@ def index():
     return "Бот працює ✅", 200
 
 # =======================
-# Головний запуск
+# Запуск
 # =======================
-
 if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=WEBHOOK_URL)
-    # Flask під Gunicorn (тому без app.run)
+    print(f"Webhook встановлено: {WEBHOOK_URL}")
+
+    if TEST_CHAT_ID:
+        try:
+            bot.send_message(TEST_CHAT_ID, "✅ Бот успішно запущено та webhook встановлено!")
+            print("Тестове повідомлення відправлено.")
+        except Exception as e:
+            print(f"Помилка при відправці тестового повідомлення: {e}")
