@@ -53,7 +53,8 @@ def start(message):
         "💰 /exchange — курс валют\n"
         "₿ /crypto — топ\\-10 криптовалют\n"
         "🥇 /metals — ціни на метали\n"
-        "⛽ /fuel — ціни на бензин і дизель\n"
+        "⛽ /fuel — ціни на бензин і дизель\n",
+        parse_mode='MarkdownV2'
     )
 
 # --- Курс валют ---
@@ -71,7 +72,7 @@ def exchange(message):
             f"🇪🇺 EUR: {eur:.2f}₴\n"
             f"🇵🇱 PLN: {pln:.2f}₴"
         )
-        bot.reply_to(message, text)
+        bot.reply_to(message, text, parse_mode='MarkdownV2')
     except Exception as e:
         bot.reply_to(message, "⚠️ Не вдалося отримати курс валют\\.")
         print(f"Помилка в exchange\\(\\): {e}")
