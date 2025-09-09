@@ -3,8 +3,11 @@ import telebot
 import requests
 from flask import Flask, request
 
-# --- Токен бота ---
-BOT_TOKEN = "ТВОЙ_ТОКЕН"
+# --- Токен бота з Render Environment Variables ---
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN не знайдений! Додай його у Render → Environment.")
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # --- API для валют ---
@@ -13,12 +16,11 @@ EXCHANGE_API_URL = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EU
 # --- API для криптовалюти ---
 CRYPTO_API_URL = "https://api.coingecko.com/api/v3/simple/price"
 
-# --- API для ТОП-10 криптовалют ---
-CRYPTO_TOP10_URL = "https://api.coingecko.com/api/v3/coins/markets"
+# --- API для металів (XAU – золото, XAG – срібло, XPT – платина, XPD – паладій) ---
+METALS_API_URL = "https://api.metals.live/v1/spot"
 
-# --- API для бензину/дизелю ---
-FUEL_API_URL = "https://api.globalpetrolprices.com/gasoline_and_diesel_prices.json"  
-# (тут безкоштовно показує загальні світові ціни)
+# --- API для пального (ціни в Україні, в євро/доларах) ---
+FUEL_API_URL = "https://api.e-control.at/sprit/preise"
 
 # --- Flask ---
 app = Flask(__name__)
@@ -39,8 +41,8 @@ def start(message):
         "Привіт! 👋 Я бот на Render Free.\n\n"
         "Команди:\n"
         "💰 /exchange — курс валют\n"
-        "₿ /crypto — BTC, ETH, USDT\n"
-        "📊 /topcrypto — ТОП-10 криптовалют\n"
+        "₿ /crypto — топ-10 криптовалют\n"
+        "🥇 /metals — ціни на метали\n"
         "⛽ /fuel — ціни на бензин і дизель\n"
     )
 
@@ -51,8 +53,8 @@ def exchange(message):
     try:
         r = requests.get(EXCHANGE_API_URL).json()
         usd = r["rates"]["UAH"]
-        eur = usd / r["rates"]["EUR"]
-        pln = usd / r["rates"]["PLN"]
+        eur = r["rates"]["UAH"] / r["rates"]["EUR"]
+        pln = r["rates"]["UAH"] / r["rates"]["PLN"]
 
         text = (
             f"💱 Курс валют (до UAH)\n\n"
@@ -66,59 +68,56 @@ def exchange(message):
         print(e)
 
 
-# --- Ціни на криптовалюту (BTC/ETH/USDT) ---
+# --- Топ-10 криптовалют ---
 @bot.message_handler(commands=["crypto"])
 def crypto(message):
     try:
-        params = {"ids": "bitcoin,ethereum,tether", "vs_currencies": "usd,uah"}
-        data = requests.get(CRYPTO_API_URL, params=params).json()
+        params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
+        data = requests.get("https://api.coingecko.com/api/v3/coins/markets", params=params).json()
 
-        text = (
-            f"₿ Ціни на криптовалюту\n\n"
-            f"BTC: {data['bitcoin']['usd']}$ / {data['bitcoin']['uah']} грн\n"
-            f"ETH: {data['ethereum']['usd']}$ / {data['ethereum']['uah']} грн\n"
-            f"USDT: {data['tether']['usd']}$ / {data['tether']['uah']} грн"
-        )
+        text = "₿ Топ-10 криптовалют\n\n"
+        for coin in data:
+            text += f"{coin['symbol'].upper()} — {coin['current_price']}$ (💹 {coin['price_change_percentage_24h']:.2f}%)\n"
+
         bot.reply_to(message, text)
     except Exception as e:
         bot.reply_to(message, "⚠️ Помилка отримання криптовалют.")
         print(e)
 
 
-# --- ТОП-10 криптовалют ---
-@bot.message_handler(commands=["topcrypto"])
-def topcrypto(message):
+# --- Метали ---
+@bot.message_handler(commands=["metals"])
+def metals(message):
     try:
-        params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
-        data = requests.get(CRYPTO_TOP10_URL, params=params).json()
-
-        text = "📊 ТОП-10 криптовалют за капіталізацією:\n\n"
-        for coin in data:
-            text += f"{coin['market_cap_rank']}. {coin['name']} ({coin['symbol'].upper()}): {coin['current_price']}$\n"
-        bot.reply_to(message, text)
-    except Exception as e:
-        bot.reply_to(message, "⚠️ Помилка отримання ТОП криптовалют.")
-        print(e)
-
-
-# --- Ціни на бензин і дизель ---
-@bot.message_handler(commands=["fuel"])
-def fuel(message):
-    try:
-        data = requests.get(FUEL_API_URL).json()
-
-        # Виберемо середні світові ціни
-        gasoline = data["global"]["gasoline"]["usd_per_liter"]
-        diesel = data["global"]["diesel"]["usd_per_liter"]
-
+        metals = requests.get(METALS_API_URL).json()
+        # Формат: [{"gold": price}, {"silver": price}, {"platinum": price}, {"palladium": price}]
         text = (
-            f"⛽ Середні ціни у світі:\n\n"
-            f"Бензин: {gasoline:.2f} $/л\n"
-            f"Дизель: {diesel:.2f} $/л"
+            f"🥇 Метали (USD/oz)\n\n"
+            f"Золото: {metals[0]['gold']}$\n"
+            f"Срібло: {metals[1]['silver']}$\n"
+            f"Платина: {metals[2]['platinum']}$\n"
+            f"Паладій: {metals[3]['palladium']}$"
         )
         bot.reply_to(message, text)
     except Exception as e:
-        bot.reply_to(message, "⚠️ Помилка отримання цін на пальне.")
+        bot.reply_to(message, "⚠️ Помилка отримання металів.")
+        print(e)
+
+
+# --- Пальне ---
+@bot.message_handler(commands=["fuel"])
+def fuel(message):
+    try:
+        # Це API австрійського контролю пального (демо), дані можна адаптувати під укр. джерела
+        data = requests.get(FUEL_API_URL).json()
+        # Для прикладу витягаємо кілька
+        diesel = data[0]["sorte"] + " — " + str(data[0]["preis"]) + " €/L"
+        petrol = data[1]["sorte"] + " — " + str(data[1]["preis"]) + " €/L"
+
+        text = f"⛽ Ціни на пальне\n\n{diesel}\n{petrol}"
+        bot.reply_to(message, text)
+    except Exception as e:
+        bot.reply_to(message, "⚠️ Помилка отримання даних про пальне.")
         print(e)
 
 
