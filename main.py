@@ -144,15 +144,18 @@ def index():
 
 # --- Flask запуск ---
 if __name__ == "__main__":
-    if WEBHOOK_URL and bot.remove_webhook() and bot.set_webhook(url=WEBHOOK_URL):
-        try:
+    try:
+        # Перевіряємо, чи вже встановлений вебхук
+        current_webhook = bot.get_webhook_info()
+        if current_webhook.url != WEBHOOK_URL:
+            # Якщо URL відрізняється, видаляємо старий і встановлюємо новий
             bot.remove_webhook()
             bot.set_webhook(url=WEBHOOK_URL)
             print(f"✅ Webhook встановлено на {WEBHOOK_URL}")
-        except telebot.apihelper.ApiTelegramException as e:
-            print(f"❌ Не вдалося встановити Webhook: {e}")
-    else:
-        print("❌ WEBHOOK_URL не знайдений. Запустити бот неможливо.")
+        else:
+            print("✅ Webhook вже встановлено. Пропускаємо встановлення.")
+    except telebot.apihelper.ApiTelegramException as e:
+        print(f"❌ Не вдалося встановити Webhook: {e}")
     
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
