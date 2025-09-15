@@ -22,6 +22,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # API URLs
 # =======================
 
+# --- API для валют (НБУ) ---
+EXCHANGE_API_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
+
 # --- API для криптовалюти (CoinGecko) ---
 CRYPTO_API_URL = "https://api.coingecko.com/api/v3/coins/markets"
 
@@ -43,59 +46,35 @@ def escape_markdown(text: str) -> str:
     return re.sub(f'({escape_chars})', r'\\\1', text)
 
 # =======================
-# Обробники команд та кнопок
+# Обробники команд
 # =======================
 
-# --- Команда /start з'являється клавіатура ---
+# --- Команда /start ---
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     print(f"Отримано команду /start від користувача {message.chat.id}")
-    
-    # Створюємо клавіатуру з кнопками
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btn1 = types.KeyboardButton("💰 Курс валют")
-    btn2 = types.KeyboardButton("₿ Топ-10 криптовалют")
-    btn3 = types.KeyboardButton("🥇 Ціни на метали")
-    btn4 = types.KeyboardButton("⛽ Ціни на пальне")
-    markup.add(btn1, btn2, btn3, btn4)
+    text = (
+        "Привіт\\! 👋 Я бот, що працює на Railway\\.\n\n"
+        "**Мої команди:**\n"
+        "💰 `/exchange` — курс валют\n"
+        "₿ `/crypto` — топ\\-10 криптовалют\n"
+        "🥇 `/metals` — ціни на дорогоцінні метали\n"
+        "⛽ `/fuel` — ціни на пальне"
+    )
+    bot.reply_to(message, text, parse_mode='MarkdownV2')
 
-    text = "Привіт\\! 👋 Я бот\\-помічник\\.\n\nОбери одну з опцій нижче:"
-    
-    # Відправляємо повідомлення з кнопками
-    bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode='MarkdownV2')
-
-# --- Обробник для кнопки "Курс валют" (ОНОВЛЕНО для exchangerate.host) ---
-@bot.message_handler(func=lambda message: message.text == "💰 Курс валют")
+# --- Курс валют ---
+@bot.message_handler(commands=["exchange"])
 def exchange(message):
-    # Використовуємо API від exchangerate.host
-    url = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EUR,PLN"
     try:
-        response = requests.get(url)
-        data = response.json()
+        r = requests.get(EXCHANGE_API_URL).json()
+        usd_rate = next(item for item in r if item["cc"] == "USD")["rate"]
+        eur_rate = next(item for item in r if item["cc"] == "EUR")["rate"]
+        pln_rate = next(item for item in r if item["cc"] == "PLN")["rate"]
 
-        # Перевіряємо, чи успішний запит
-        if not data.get("success"):
-            # ВИПРАВЛЕНО: Додаємо логування для діагностики
-            print(f"Помилка API exchangerate.host: {data}")
-            raise ValueError("Не вдалося отримати дані від API exchangerate.host")
-
-        rates = data['rates']
-        usd_to_uah = rates.get('UAH')
-        usd_to_eur = rates.get('EUR')
-        usd_to_pln = rates.get('PLN')
-
-        # Перевіряємо, чи отримали ми всі необхідні курси
-        if not all([usd_to_uah, usd_to_eur, usd_to_pln]):
-             raise ValueError("API не повернуло необхідні курси валют")
-
-        # Розраховуємо крос-курси відносно гривні
-        eur_to_uah = usd_to_uah / usd_to_eur
-        pln_to_uah = usd_to_uah / usd_to_pln
-        
-        # Форматуємо для виводу
-        usd_str = f"{usd_to_uah:.2f}".replace(".", "\\.")
-        eur_str = f"{eur_to_uah:.2f}".replace(".", "\\.")
-        pln_str = f"{pln_to_uah:.2f}".replace(".", "\\.")
+        usd_str = f"{usd_rate:.2f}".replace(".", "\\.")
+        eur_str = f"{eur_rate:.2f}".replace(".", "\\.")
+        pln_str = f"{pln_rate:.2f}".replace(".", "\\.")
         
         text = (
             f"💱 *Курс валют \\(до UAH\\)*\n\n"
@@ -103,13 +82,13 @@ def exchange(message):
             f"🇪🇺 EUR: {eur_str}₴\n"
             f"🇵🇱 PLN: {pln_str}₴"
         )
-        bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
+        bot.reply_to(message, text, parse_mode='MarkdownV2')
     except Exception as e:
-        bot.send_message(message.chat.id, escape_markdown("⚠️ Не вдалося отримати курс валют."))
+        bot.reply_to(message, escape_markdown("⚠️ Не вдалося отримати курс валют."))
         print(f"Помилка в exchange(): {e}")
 
-# --- Обробник для кнопки "Топ-10 криптовалют" ---
-@bot.message_handler(func=lambda message: message.text == "₿ Топ-10 криптовалют")
+# --- Топ-10 криптовалют ---
+@bot.message_handler(commands=["crypto"])
 def crypto(message):
     try:
         params = {"vs_currency": "usd", "order": "market_cap_desc", "per_page": 10, "page": 1}
@@ -124,19 +103,19 @@ def crypto(message):
             text_lines.append(line)
         
         text = "\n".join(text_lines)
-        bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
+        bot.reply_to(message, text, parse_mode='MarkdownV2')
     except Exception as e:
-        bot.send_message(message.chat.id, escape_markdown("⚠️ Не вдалося отримати дані про криптовалюту."))
+        bot.reply_to(message, escape_markdown("⚠️ Не вдалося отримати дані про криптовалюту."))
         print(f"Помилка в crypto(): {e}")
 
-# --- Обробник для кнопки "Ціни на метали" ---
-@bot.message_handler(func=lambda message: message.text == "🥇 Ціни на метали")
+# --- Метали ---
+@bot.message_handler(commands=["metals"])
 def metals(message):
     api_key = os.getenv("METALS_API_KEY")
     
     if not api_key:
         error_text = "⚠️ Ключ для API металів не налаштований. Додайте METALS_API_KEY у змінні середовища."
-        bot.send_message(message.chat.id, escape_markdown(error_text))
+        bot.reply_to(message, escape_markdown(error_text))
         print("Помилка: METALS_API_KEY не знайдений.")
         return
 
@@ -147,13 +126,9 @@ def metals(message):
         response = requests.get(url, headers=headers)
         data = response.json()
 
-        # Покращена обробка помилок
         if not data.get("success"):
             print(f"Помилка API металів: {data}")
-            
-            # Перевіряємо на специфічну помилку 'no Route matched'
             if data.get("message") == "no Route matched with those values":
-                # ВИПРАВЛЕНО: Екрануємо дужки навколо 'Free Plan'
                 user_error_message = (
                     "⚠️ *Проблема з доступом до API металів\\.*\n\n"
                     "Сервер не розпізнав запит\\. Найімовірніше, ваш API ключ не підписаний на сервіс **Metals API**\\.\n\n"
@@ -162,13 +137,11 @@ def metals(message):
                     "2\\. Перейдіть на сторінку [Metals API](https://apilayer.com/marketplace/metals-api)\\.\n"
                     "3\\. Переконайтеся, що ви підписані на безкоштовний план \\(**Free Plan**\\) саме для цього API\\."
                 )
-                bot.send_message(message.chat.id, user_error_message, parse_mode='MarkdownV2', disable_web_page_preview=True)
+                bot.reply_to(message, user_error_message, parse_mode='MarkdownV2', disable_web_page_preview=True)
             else:
-                # Загальна помилка API
                 api_error_info = data.get("error", {}).get("info", "Не вдалося отримати ціни на метали.")
-                bot.send_message(message.chat.id, escape_markdown(f"⚠️ {api_error_info}"))
-
-            return # Зупиняємо виконання функції після помилки
+                bot.reply_to(message, escape_markdown(f"⚠️ {api_error_info}"))
+            return
 
         rates = data['rates']
         gold_price = f"{rates.get('XAU', 0):.2f}".replace(".", "\\.")
@@ -183,13 +156,13 @@ def metals(message):
             f"Платина: {platinum_price}\\$\n"
             f"Паладій: {palladium_price}\\$"
         )
-        bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
+        bot.reply_to(message, text, parse_mode='MarkdownV2')
     except Exception as e:
-        bot.send_message(message.chat.id, escape_markdown("⚠️ Сталася помилка. Спробуйте пізніше."))
+        bot.reply_to(message, escape_markdown("⚠️ Сталася помилка. Спробуйте пізніше."))
         print(f"Помилка в metals(): {e}")
 
-# --- Обробник для кнопки "Ціни на пальне" ---
-@bot.message_handler(func=lambda message: message.text == "⛽ Ціни на пальне")
+# --- Пальне ---
+@bot.message_handler(commands=["fuel"])
 def fuel(message):
     try:
         fuel_prices = get_fuel_prices_data()
@@ -200,9 +173,9 @@ def fuel(message):
             text_lines.append(f"*{escaped_k}*: {price}₴")
         
         text = "\n".join(text_lines)
-        bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
+        bot.reply_to(message, text, parse_mode='MarkdownV2')
     except Exception as e:
-        bot.send_message(message.chat.id, escape_markdown("⚠️ Не вдалося завантажити ціни на пальне."))
+        bot.reply_to(message, escape_markdown("⚠️ Не вдалося завантажити ціни на пальне."))
         print(f"Помилка в fuel(): {e}")
 
 # =======================
