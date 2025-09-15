@@ -22,9 +22,6 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # API URLs
 # =======================
 
-# --- API для валют (НБУ) ---
-EXCHANGE_API_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"
-
 # --- API для криптовалюти (CoinGecko) ---
 CRYPTO_API_URL = "https://api.coingecko.com/api/v3/coins/markets"
 
@@ -67,18 +64,35 @@ def start(message):
     # Відправляємо повідомлення з кнопками
     bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode='MarkdownV2')
 
-# --- Обробник для кнопки "Курс валют" ---
+# --- Обробник для кнопки "Курс валют" (ОНОВЛЕНО для exchangerate.host) ---
 @bot.message_handler(func=lambda message: message.text == "💰 Курс валют")
 def exchange(message):
+    # Використовуємо API від exchangerate.host
+    url = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EUR,PLN"
     try:
-        r = requests.get(EXCHANGE_API_URL).json()
-        usd_rate = next(item for item in r if item["cc"] == "USD")["rate"]
-        eur_rate = next(item for item in r if item["cc"] == "EUR")["rate"]
-        pln_rate = next(item for item in r if item["cc"] == "PLN")["rate"]
+        data = requests.get(url).json()
 
-        usd_str = f"{usd_rate:.2f}".replace(".", "\\.")
-        eur_str = f"{eur_rate:.2f}".replace(".", "\\.")
-        pln_str = f"{pln_rate:.2f}".replace(".", "\\.")
+        # Перевіряємо, чи успішний запит
+        if not data.get("success"):
+            raise ValueError("Не вдалося отримати дані від API exchangerate.host")
+
+        rates = data['rates']
+        usd_to_uah = rates.get('UAH')
+        usd_to_eur = rates.get('EUR')
+        usd_to_pln = rates.get('PLN')
+
+        # Перевіряємо, чи отримали ми всі необхідні курси
+        if not all([usd_to_uah, usd_to_eur, usd_to_pln]):
+             raise ValueError("API не повернуло необхідні курси валют")
+
+        # Розраховуємо крос-курси відносно гривні
+        eur_to_uah = usd_to_uah / usd_to_eur
+        pln_to_uah = usd_to_uah / usd_to_pln
+        
+        # Форматуємо для виводу
+        usd_str = f"{usd_to_uah:.2f}".replace(".", "\\.")
+        eur_str = f"{eur_to_uah:.2f}".replace(".", "\\.")
+        pln_str = f"{pln_to_uah:.2f}".replace(".", "\\.")
         
         text = (
             f"💱 *Курс валют \\(до UAH\\)*\n\n"
