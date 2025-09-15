@@ -101,7 +101,8 @@ def crypto(message):
         text_lines = ["₿ *Топ\\-10 криптовалют*"]
         for coin in data:
             price = f"{coin['current_price']:.2f}".replace(".", "\\.")
-            change = f"{coin.get('price_change_percentage_24h', 0):.2f}".replace(".", "\\.")
+            # ВИПРАВЛЕНО: Додано екранування знаку мінус (-)
+            change = f"{coin.get('price_change_percentage_24h', 0):.2f}".replace(".", "\\.").replace("-", "\\-")
             line = (f"*{coin['market_cap_rank']}\\. {coin['symbol'].upper()}*: "
                     f"{price}\\$ \\(💹 {change}\\%\\)")
             text_lines.append(line)
@@ -130,7 +131,9 @@ def metals(message):
         response = requests.get(url, headers=headers)
         data = response.json()
 
+        # ВИПРАВЛЕНО: Додано логування повної помилки від API
         if not data.get("success"):
+            print(f"Помилка API металів: {data}") # Друкуємо повну відповідь для діагностики
             api_error_info = data.get("error", {}).get("info", "Невідома помилка API.")
             raise ValueError(api_error_info)
 
@@ -160,7 +163,9 @@ def fuel(message):
         text_lines = ["⛽ *Ціни на пальне \\(приклад\\):*"]
         for k, v in fuel_prices.items():
             price = f"{v:.2f}".replace(".", "\\.")
-            text_lines.append(f"*{k}*: {price}₴")
+            # ВИПРАВЛЕНО: Додано екранування дефісу в назві пального (А-95)
+            escaped_k = k.replace("-", "\\-")
+            text_lines.append(f"*{escaped_k}*: {price}₴")
         
         text = "\n".join(text_lines)
         bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
