@@ -101,7 +101,6 @@ def crypto(message):
         text_lines = ["₿ *Топ\\-10 криптовалют*"]
         for coin in data:
             price = f"{coin['current_price']:.2f}".replace(".", "\\.")
-            # ВИПРАВЛЕНО: Додано екранування знаку мінус (-)
             change = f"{coin.get('price_change_percentage_24h', 0):.2f}".replace(".", "\\.").replace("-", "\\-")
             line = (f"*{coin['market_cap_rank']}\\. {coin['symbol'].upper()}*: "
                     f"{price}\\$ \\(💹 {change}\\%\\)")
@@ -119,7 +118,7 @@ def metals(message):
     api_key = os.getenv("METALS_API_KEY")
     
     if not api_key:
-        error_text = "⚠️ Ключ для API металів не налаштований. Будь ласка, додайте METALS_API_KEY у змінні середовища на Railway."
+        error_text = "⚠️ Ключ для API металів не налаштований. Додайте METALS_API_KEY у змінні середовища."
         bot.send_message(message.chat.id, escape_markdown(error_text))
         print("Помилка: METALS_API_KEY не знайдений.")
         return
@@ -131,11 +130,27 @@ def metals(message):
         response = requests.get(url, headers=headers)
         data = response.json()
 
-        # ВИПРАВЛЕНО: Додано логування повної помилки від API
+        # Покращена обробка помилок
         if not data.get("success"):
-            print(f"Помилка API металів: {data}") # Друкуємо повну відповідь для діагностики
-            api_error_info = data.get("error", {}).get("info", "Невідома помилка API.")
-            raise ValueError(api_error_info)
+            print(f"Помилка API металів: {data}")
+            
+            # Перевіряємо на специфічну помилку 'no Route matched'
+            if data.get("message") == "no Route matched with those values":
+                user_error_message = (
+                    "⚠️ *Проблема з доступом до API металів\\.*\n\n"
+                    "Сервер не розпізнав запит\\. Найімовірніше, ваш API ключ не підписаний на сервіс **Metals API**\\.\n\n"
+                    "*Що робити?*\n"
+                    "1\\. Зайдіть у свій акаунт на `apilayer.com`\\.\n"
+                    "2\\. Перейдіть на сторінку [Metals API](https://apilayer.com/marketplace/metals-api)\\.\n"
+                    "3\\. Переконайтеся, що ви підписані на безкоштовний план (**Free Plan**) саме для цього API\\."
+                )
+                bot.send_message(message.chat.id, user_error_message, parse_mode='MarkdownV2', disable_web_page_preview=True)
+            else:
+                # Загальна помилка API
+                api_error_info = data.get("error", {}).get("info", "Не вдалося отримати ціни на метали.")
+                bot.send_message(message.chat.id, escape_markdown(f"⚠️ {api_error_info}"))
+
+            return # Зупиняємо виконання функції після помилки
 
         rates = data['rates']
         gold_price = f"{rates.get('XAU', 0):.2f}".replace(".", "\\.")
@@ -152,7 +167,7 @@ def metals(message):
         )
         bot.send_message(message.chat.id, text, parse_mode='MarkdownV2')
     except Exception as e:
-        bot.send_message(message.chat.id, escape_markdown("⚠️ Не вдалося отримати ціни на метали."))
+        bot.send_message(message.chat.id, escape_markdown("⚠️ Сталася помилка. Спробуйте пізніше."))
         print(f"Помилка в metals(): {e}")
 
 # --- Обробник для кнопки "Ціни на пальне" ---
@@ -163,7 +178,6 @@ def fuel(message):
         text_lines = ["⛽ *Ціни на пальне \\(приклад\\):*"]
         for k, v in fuel_prices.items():
             price = f"{v:.2f}".replace(".", "\\.")
-            # ВИПРАВЛЕНО: Додано екранування дефісу в назві пального (А-95)
             escaped_k = k.replace("-", "\\-")
             text_lines.append(f"*{escaped_k}*: {price}₴")
         
