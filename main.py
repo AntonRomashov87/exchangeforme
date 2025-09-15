@@ -70,10 +70,13 @@ def exchange(message):
     # Використовуємо API від exchangerate.host
     url = "https://api.exchangerate.host/latest?base=USD&symbols=UAH,EUR,PLN"
     try:
-        data = requests.get(url).json()
+        response = requests.get(url)
+        data = response.json()
 
         # Перевіряємо, чи успішний запит
         if not data.get("success"):
+            # ВИПРАВЛЕНО: Додаємо логування для діагностики
+            print(f"Помилка API exchangerate.host: {data}")
             raise ValueError("Не вдалося отримати дані від API exchangerate.host")
 
         rates = data['rates']
@@ -150,13 +153,14 @@ def metals(message):
             
             # Перевіряємо на специфічну помилку 'no Route matched'
             if data.get("message") == "no Route matched with those values":
+                # ВИПРАВЛЕНО: Екрануємо дужки навколо 'Free Plan'
                 user_error_message = (
                     "⚠️ *Проблема з доступом до API металів\\.*\n\n"
                     "Сервер не розпізнав запит\\. Найімовірніше, ваш API ключ не підписаний на сервіс **Metals API**\\.\n\n"
                     "*Що робити?*\n"
                     "1\\. Зайдіть у свій акаунт на `apilayer.com`\\.\n"
                     "2\\. Перейдіть на сторінку [Metals API](https://apilayer.com/marketplace/metals-api)\\.\n"
-                    "3\\. Переконайтеся, що ви підписані на безкоштовний план (**Free Plan**) саме для цього API\\."
+                    "3\\. Переконайтеся, що ви підписані на безкоштовний план \\(**Free Plan**\\) саме для цього API\\."
                 )
                 bot.send_message(message.chat.id, user_error_message, parse_mode='MarkdownV2', disable_web_page_preview=True)
             else:
