@@ -115,24 +115,41 @@ def crypto(message):
         bot.reply_to(message, escape_markdown("⚠️ Не вдалося отримати дані про криптовалюту."))
         print(f"Помилка в crypto(): {e}")
 
-# --- Метали ---
+# --- Метали (з реальним курсом через API Layer) ---
 @bot.message_handler(commands=["metals"])
 def metals(message):
-    if not METALS_API_KEY:
-        bot.reply_to(message, escape_markdown("⚠️ Ключ для API металів не налаштований."))
+    # Отримуємо ключ з налаштувань Railway
+    api_key = os.getenv("METALS_API_KEY")
+    
+    # Перевіряємо, чи додав користувач ключ
+    if not api_key:
+        error_text = "⚠️ Ключ для API металів не налаштований. Будь ласка, додайте METALS_API_KEY у змінні середовища на Railway."
+        bot.reply_to(message, escape_markdown(error_text))
+        print("Помилка: METALS_API_KEY не знайдений.")
         return
-        
+
+    # Налаштування для запиту до API Layer
+    url = "https://api.apilayer.com/metals/latest?base=USD&symbols=XAU,XAG,XPT,XPD"
+    headers = {
+      "apikey": api_key
+    }
+    
     try:
-        data = requests.get(METALS_API_URL).json()
+        response = requests.get(url, headers=headers)
+        data = response.json()
+
+        # Перевіряємо, чи успішний запит
         if not data.get("success"):
-            raise ValueError(data.get("error", {}).get("info", "Unknown API error"))
+            api_error_info = data.get("error", {}).get("info", "Невідома помилка API.")
+            raise ValueError(api_error_info)
 
         rates = data['rates']
-        # Ціни в API вказані за унцію відносно USD, але нам потрібно обернути курс
-        gold_price = f"{1 / rates.get('XAU', 0):.2f}".replace(".", "\\.")
-        silver_price = f"{1 / rates.get('XAG', 0):.2f}".replace(".", "\\.")
-        platinum_price = f"{1 / rates.get('XPT', 0):.2f}".replace(".", "\\.")
-        palladium_price = f"{1 / rates.get('XPD', 0):.2f}".replace(".", "\\.")
+        # API повертає ціну за одиницю металу відносно базової валюти (USD)
+        # Наприклад, скільки USD коштує 1 унція золота (XAU)
+        gold_price = f"{rates.get('XAU', 0):.2f}".replace(".", "\\.")
+        silver_price = f"{rates.get('XAG', 0):.2f}".replace(".", "\\.")
+        platinum_price = f"{rates.get('XPT', 0):.2f}".replace(".", "\\.")
+        palladium_price = f"{rates.get('XPD', 0):.2f}".replace(".", "\\.")
         
         text = (
             f"🥇 *Метали \\(USD/oz\\)*\n\n"
@@ -145,7 +162,6 @@ def metals(message):
     except Exception as e:
         bot.reply_to(message, escape_markdown("⚠️ Не вдалося отримати ціни на метали."))
         print(f"Помилка в metals(): {e}")
-
 # --- Пальне ---
 @bot.message_handler(commands=["fuel"])
 def fuel(message):
